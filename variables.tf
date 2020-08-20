@@ -1,12 +1,15 @@
-variable "autoscale_handler_unique_identifier" {
-  description = "asg_dns_handler"
+variable "environment" {
+  description = "Environment that we're in"
 }
 
-variable "vpc_name" {
-  description = "The name of the VPC"
+variable "region" {
+  description = "AWS Region that we're in"
 }
 
-variable "autoscale_route53zone_arn" {
-  description = "The ARN of route53 zone associated with autoscaling group"
+variable "route53-zone-id" {
+  description = "The ZONE ID of the forward DNS zone"
 }
 
+variable "route53-rev-zone-id" {
+  description = "The ZONE ID of the reverse DNS zone"
+}

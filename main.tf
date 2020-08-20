@@ -1,9 +1,9 @@
 resource "aws_sns_topic" "autoscale_handling" {
-  name = "${var.vpc_name}-${var.autoscale_handler_unique_identifier}"
+  name = "${var.environment}-DNS"
 }
 
 resource "aws_iam_role_policy" "autoscale_handling" {
-  name = "${var.vpc_name}-${var.autoscale_handler_unique_identifier}"
+  name = "${var.environment}-DNS"
   role = aws_iam_role.autoscale_handling.name
 
   policy = <<EOF
@@ -37,7 +37,7 @@ resource "aws_iam_role_policy" "autoscale_handling" {
         "route53:ListResourceRecordSets"
       ],
       "Effect":"Allow",
-      "Resource":"arn:aws:route53:::hostedzone/${var.autoscale_route53zone_arn}"
+      "Resource":"arn:aws:route53:::hostedzone/${var.route53-zone-id}"
     }
   ]
 }
@@ -46,7 +46,7 @@ EOF
 }
 
 resource "aws_iam_role" "autoscale_handling" {
-  name = "${var.vpc_name}-${var.autoscale_handler_unique_identifier}"
+  name = "${var.environment}-DNS"
 
   assume_role_policy = <<EOF
 {
@@ -67,7 +67,7 @@ EOF
 }
 
 resource "aws_iam_role" "lifecycle" {
-  name               = "${var.vpc_name}-${var.autoscale_handler_unique_identifier}-lifecycle"
+  name               = "${var.environment}-DNS-lifecycle"
   assume_role_policy = data.aws_iam_policy_document.lifecycle.json
 }
 
@@ -84,7 +84,7 @@ data "aws_iam_policy_document" "lifecycle" {
 }
 
 resource "aws_iam_role_policy" "lifecycle_policy" {
-  name   = "${var.vpc_name}-${var.autoscale_handler_unique_identifier}-lifecycle"
+  name   = "${var.environment}-DNS-lifecycle"
   role   = aws_iam_role.lifecycle.id
   policy = data.aws_iam_policy_document.lifecycle_policy.json
 }
@@ -99,7 +99,14 @@ data "aws_iam_policy_document" "lifecycle_policy" {
 
 data "archive_file" "autoscale" {
   type        = "zip"
-  source_file = "${path.module}/lambda/autoscale/autoscale.py"
+  source {
+    content   = templatefile("${path.module}/lambda/autoscale/autoscale.py.tmpl", {
+        ZONE_ID         = var.route53-zone-id,
+        REVERSE_ZONE_ID = var.route53-rev-zone-id[0]
+      }
+    )
+    filename = "autoscale.py"
+  }
   output_path = "${path.module}/lambda/dist/autoscale.zip"
 }
 
@@ -107,10 +114,10 @@ resource "aws_lambda_function" "autoscale_handling" {
   depends_on = [aws_sns_topic.autoscale_handling]
 
   filename         = data.archive_file.autoscale.output_path
-  function_name    = "${var.vpc_name}-${var.autoscale_handler_unique_identifier}"
+  function_name    = "${var.environment}-DNS"
   role             = aws_iam_role.autoscale_handling.arn
   handler          = "autoscale.lambda_handler"
-  runtime          = "python2.7"
+  runtime          = "python3.8"
   source_code_hash = filebase64sha256(data.archive_file.autoscale.output_path)
   description      = "Handles DNS for autoscaling groups by receiving autoscaling notifications and setting/deleting records from route53"
 }
